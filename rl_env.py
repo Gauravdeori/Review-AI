@@ -1,0 +1,199 @@
+import gymnasium as gym
+from gymnasium import spaces
+import random
+import numpy as np
+from rule_engine import rule_based_review
+from sandbox import run_in_sandbox
+
+# --- Global Tuning Constants ---
+MAX_SEQ_LEN = 1024
+VOCAB_SIZE = 256
+MAX_LINES = 100
+MAX_COLS = 120
+
+# Action Map
+ACTION_NOOP = 0
+ACTION_DELETE_LINE = 1
+ACTION_INSERT_TOKEN = 2
+ACTION_REPLACE_TOKEN = 3
+
+class CodeReviewEnv(gym.Env):
+    """
+    Gymnasium Environment that simulates an agent reviewing and fixing code.
+    Interacts directly with the local synchronous rule Engine API 
+    for evaluating code functionality, performance, and formatting.
+    """
+    metadata = {"render_modes": ["ansi"]}
+
+    def __init__(self, language="JavaScript", difficulty="medium"):
+        super().__init__()
+        self.language = language
+        self.difficulty = difficulty
+        
+        # Observation Space (what the agent sees)
+        self.observation_space = spaces.Dict({
+            "tokens": spaces.Box(low=0, high=VOCAB_SIZE - 1, shape=(MAX_SEQ_LEN,), dtype=np.int32),
+            "features": spaces.Box(low=0, high=100, shape=(3,), dtype=np.int32)
+        })
+        
+        # Action Space (what the agent can do)
+        # Format: [action_type, line_num, col_num, token_id]
+        self.action_space = spaces.MultiDiscrete([4, MAX_LINES, MAX_COLS, VOCAB_SIZE])
+        
+        self.current_code = ""
+        self.current_score = 0
+        
+        # Hard-coded subset of bugs for testing (Agent starts here)
+        self.buggy_snippets = [
+            "function calculateSum(arr) {\n  let total = 0\n  for (let i = 0; i <= arr.length; i++) {\n    total += arr[i]\n  }\n  return total\n}",
+            "function findDuplicate(arr) {\n  for (let i = 0; i < arr.length; i++) {\n    for (let j = 0; j < arr.length; j++) {\n      if (arr[i] === arr[j]) return true\n    }\n  }\n  return false\n}"
+        ]
+
+    def encode_observation(self, code: str, review_info: dict) -> dict:
+        """Converts raw code text and diagnostic metadata into numerical tensors."""
+        # 1. Tokenize the code completely down to integer ordinals (character-level)
+        tokens = np.zeros(MAX_SEQ_LEN, dtype=np.int32)
+        encoded_chars = [ord(c) for c in code if ord(c) < VOCAB_SIZE] # Safeguard against > 255
+        length = min(len(encoded_chars), MAX_SEQ_LEN)
+        if length > 0:
+            tokens[:length] = encoded_chars[:length]
+        
+        # 2. Extract rule-engine features
+        critical = sum(1 for b in review_info.get("bugs", []) if b["severity"] == "critical")
+        warning = sum(1 for b in review_info.get("bugs", []) if b["severity"] == "warning")
+        info_count = sum(1 for b in review_info.get("bugs", []) if b["severity"] == "info")
+        features = np.array([critical, warning, info_count], dtype=np.int32)
+        
+        return {
+            "tokens": tokens,
+            "features": features
+        }
+
+    def decode_action(self, action: np.ndarray, current_code: str) -> str:
+        """Translates the agent's MultiDiscrete output sequence into string modification patches."""
+        action_type, line_num, col_num, token_id = action
+        
+        # Safe breakdown logic
+        lines = current_code.split("\n")
+        
+        # Ignore out of bounds line edits immediately
+        if line_num >= len(lines):
+            return current_code
+            
+        if action_type == ACTION_NOOP:
+            return current_code
+            
+        elif action_type == ACTION_DELETE_LINE:
+            lines.pop(line_num)
+            
+        elif action_type == ACTION_INSERT_TOKEN:
+            target_line = lines[line_num]
+            safe_col = min(col_num, len(target_line)) # insert anywhere up to the end
+            char_to_insert = chr(token_id)
+            lines[line_num] = target_line[:safe_col] + char_to_insert + target_line[safe_col:]
+            
+        elif action_type == ACTION_REPLACE_TOKEN:
+            target_line = lines[line_num]
+            if len(target_line) > 0:
+                safe_col = min(col_num, len(target_line) - 1)
+                char_to_replace = chr(token_id)
+                lines[line_num] = target_line[:safe_col] + char_to_replace + target_line[safe_col + 1:]
+                
+        return "\n".join(lines)
+
+    def reset(self, *, seed=None, options=None):
+        """Pulls a broken snippet from the database and returns initial state."""
+        super().reset(seed=seed, options=options)
+        
+        # Select random code snippet to debug
+        self.current_code = random.choice(self.buggy_snippets)
+        
+        # Get the starting baseline score internally
+        info = rule_based_review(self.current_code, self.language, self.difficulty)
+        self.current_score = info.get("score", 0)
+        
+        obs = self.encode_observation(self.current_code, info)
+        return obs, info
+
+    def step(self, action):
+        """Evaluates the Code generated by the Agent locally."""
+        # Convert MultiDiscrete array wrapper action into code string
+        new_code = self.decode_action(action, self.current_code)
+        
+        # Run local synchronous rule engine
+        review_info = rule_based_review(new_code, self.language, self.difficulty)
+        new_score = review_info.get("score", 0)
+        
+        # The reward function is simply the net score increment from previous state
+        reward = float(new_score - self.current_score)
+        
+        # --- SECOND STAGE: SANDBOX REWARD ---
+        sandbox_res = run_in_sandbox(new_code, self.language)
+        reward += sandbox_res.reward_bonus
+        
+        # +10 terminal bonus reward (only if sandbox tests completely pass AND rules are 100)
+        if new_score == 100 and sandbox_res.tests_passed:
+            reward += 10.0
+            terminated = True
+        else:
+            terminated = False
+        
+        # Update internal state tracking
+        self.current_code = new_code
+        self.current_score = new_score
+        
+        truncated = False
+        
+        # Return full dictionary metrics (including detected bugs array, code optimizations list)
+        info = review_info
+        info["sandbox_compiled"] = sandbox_res.compiled
+        info["sandbox_tests_passed"] = sandbox_res.tests_passed
+        info["sandbox_timeout"] = sandbox_res.timed_out
+        info["sandbox_reward_bonus"] = sandbox_res.reward_bonus
+        info["sandbox_stderr"] = sandbox_res.stderr
+        
+        obs = self.encode_observation(self.current_code, info)
+        return obs, reward, terminated, truncated, info
+
+
+
+# ---------------------------------------------------------
+# Developer Self-Test execution block
+# ---------------------------------------------------------
+if __name__ == "__main__":
+    print("[*] Instantiating RL CodeReview Environment Wrapper...")
+    env = CodeReviewEnv()
+    
+    # Force the first snippet to ensure the hardcoded replacement action works reliably during the local test
+    env.buggy_snippets = [
+        "function calculateSum(arr) {\n  let total = 0\n  for (let i = 0; i <= arr.length; i++) {\n    total += arr[i]\n  }\n  return total\n}"
+    ]
+    obs, info = env.reset()
+    
+    print("\n--- [BUGGY] INITIAL STATE ---")
+    print(env.current_code)
+    print(f"\n=> Evaluated Baseline Score: {env.current_score}/100")
+    print("=> Backend Status:", info.get('verdict'))
+    print(f"=> Observation Shape: tokens={obs['tokens'].shape}, features={obs['features'].shape}")
+    
+    print("\n--- [AGENT ACTION] Inserting semicolon to fix warning ---")
+    
+    # We will simulate adding a semicolon to row 1.
+    # Row 1: "  let total = 0" (length 15). Append ';' at column 15.
+    # Action: INSERT_TOKEN, line_num=1, col_num=15, token_id=ord(';')
+    mock_action = np.array([ACTION_INSERT_TOKEN, 1, 15, ord(';')])
+    
+    # Proceed a training step
+    new_obs, reward, terminated, truncated, step_info = env.step(mock_action)
+    
+    print(env.current_code)
+    print(f"\n=> New Total Score: {env.current_score}/100")
+    print(f"=> Reward Yielded For Editing: +{reward}")
+    print(f"=> Reached Termination (Game Won): {terminated}")
+    print(f"=> Sandbox Compiled: {step_info.get('sandbox_compiled')}")
+    print(f"=> Sandbox Tests Passed: {step_info.get('sandbox_tests_passed')}")
+    print(f"=> Sandbox Reward Bonus: {step_info.get('sandbox_reward_bonus')}")
+    if step_info.get("sandbox_stderr"):
+        print(f"=> Sandbox Stderr: {step_info.get('sandbox_stderr')}")
+    if "bugs" in step_info:
+         print(f"=> Remaining Detected Bugs: {len(step_info['bugs'])}")
