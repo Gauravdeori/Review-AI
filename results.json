@@ -1,0 +1,29 @@
+[
+    {
+        "difficulty": "easy",
+        "language": "JavaScript",
+        "initial_code": "function calculateSum(arr) {\n  let total = 0\n  for (let i = 0; i <= arr.length; i++) {\n    total += arr[i]\n  }\n  return total\n}",
+        "action_id": 0,
+        "reward": -0.2,
+        "final_score": 80,
+        "success": false
+    },
+    {
+        "difficulty": "medium",
+        "language": "Python",
+        "initial_code": "def is_palindrome(s):\n    for i in range(len(s) / 2):\n        if s[i] != s[len(s) - i]:\n            return False\n    return True",
+        "action_id": 0,
+        "reward": -0.2,
+        "final_score": 60,
+        "success": false
+    },
+    {
+        "difficulty": "hard",
+        "language": "JavaScript",
+        "initial_code": "function findDuplicate(arr) {\n  for (let i = 0; i < arr.length; i++) {\n    for (let j = 0; j < arr.length; j++) {\n      if (arr[i] === arr[j]) return true\n    }\n  }\n  return false\n}",
+        "action_id": 0,
+        "reward": -0.2,
+        "final_score": 95,
+        "success": false
+    }
+]

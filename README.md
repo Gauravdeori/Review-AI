@@ -47,9 +47,9 @@ cd code-review-app
 cd backend
 npm install
 
-# Copy the env template and add your Anthropic API key
+# Copy the env template and add your OpenAI API key
 cp .env.example .env
-# Edit .env → set ANTHROPIC_API_KEY=sk-ant-...
+# Edit .env → set OPENAI_API_KEY=sk-proj-...
 
 npm run dev      # starts on http://localhost:4000
 ```
@@ -70,14 +70,49 @@ Open **http://localhost:3000** in your browser.
 
 ---
 
+## 🧠 Technical Architecture
+
+```mermaid
+graph TD
+    User([User]) -->|Submits Code| WebUI[React Frontend]
+    WebUI -->|POST /api/review| Backend[Node.js Backend]
+    
+    subgraph AI_Engine [AI & Logic Engine]
+        Backend -->|Primary| OpenAI[OpenAI GPT-4o-mini]
+        Backend -->|Fallback| Rules[Rule Engine / Python]
+    end
+    
+    subgraph RL_Verification [RL & Sandbox Verification]
+        Rules -->|Observation| Env[Gymnasium Env]
+        Env -->|Isolated Exec| Sandbox[Docker Sandbox]
+        Sandbox -->|Test Results| Env
+        Env -->|Reward Signal| Agent[RL Agent]
+    end
+    
+    OpenAI --> Backend
+    Agent -->|Validation| Backend
+    Backend -->|Structured JSON| WebUI
+```
+
+---
+
+## 🏆 Why this Wins (Hackathon USP)
+
+1.  **RL-in-the-Loop**: Unlike static linters, this project uses **Reinforcement Learning** to verify if a "fix" actually works by running it in a sandbox.
+2.  **Graceful Degradation**: Works with or without an OpenAI key thanks to a high-performance Python rule engine.
+3.  **Industrial Security**: All code execution happens in a resource-limited, network-isolated **Docker Sandbox**.
+4.  **Full-Stack Polish**: A production-ready React UI with animated SVG scores and interactive bug cards.
+
+---
+
 ## 🧠 How the AI Logic Works
 
-### Claude AI path (when API key is present)
+### OpenAI GPT path (when API key is present)
 
 1. The frontend sends `POST /api/review` with `{ code, language, difficulty }`.
 2. The backend crafts a prompt with a strict JSON schema and sends it to
-   `claude-sonnet-4-20250514` via the Anthropic SDK.
-3. Claude returns a structured JSON object with bugs, optimizations, score,
+   `gpt-4o-mini` via the OpenAI SDK.
+3. GPT returns a structured JSON object with bugs, optimizations, score,
    verdict, and a code patch.
 4. The frontend renders the result with line highlights, cards, and a score ring.
 
@@ -96,17 +131,17 @@ Verdict: APPROVED if score ≥ 70.
 
 ---
 
-## 🔌 Extending with Real LLM APIs
+## 🔌 Extending with Other LLM APIs
 
 To swap in a different model or provider, edit `backend/server.js`:
 
 ```js
-// OpenAI example
-import OpenAI from "openai";
+// Already configured with OpenAI
+const OpenAI = require("openai");
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 const resp = await openai.chat.completions.create({
-  model: "gpt-4o",
+  model: "gpt-4o-mini",
   messages: [
     { role: "system",  content: SYSTEM_PROMPT },
     { role: "user",    content: userMessage },
@@ -148,6 +183,6 @@ The frontend and schema stay identical — only the backend call changes.
 |---|---|
 | Frontend | React 18, inline CSS |
 | Backend | Node.js, Express 4 |
-| AI | Anthropic Claude (claude-sonnet-4-20250514) |
+| AI | OpenAI GPT (gpt-4o-mini) |
 | Fallback | Custom rule-based engine |
 | Transport | REST JSON API |

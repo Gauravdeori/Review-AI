@@ -89,7 +89,7 @@ export default function App() {
           }}>🔍</div>
           <div>
             <div style={{ fontWeight: 700, fontSize: 14, letterSpacing: -0.3 }}>CodeReview AI</div>
-            <div style={{ fontSize: 9, color: "#6e7681", letterSpacing: 0.5 }}>POWERED BY CLAUDE</div>
+            <div style={{ fontSize: 9, color: "#6e7681", letterSpacing: 0.5 }}>POWERED BY GPT</div>
           </div>
         </div>
 
@@ -221,14 +221,14 @@ export default function App() {
             <div style={{ flex:1, overflow:"auto", padding:16, animation:"slideIn 0.3s ease" }}>
 
               {/* Source badge */}
-              {source.includes("claude") && (
+              {(source.includes("claude") || source.includes("openai") || source.includes("gpt")) && (
                 <div style={{
                   fontSize:11, color:"#4ade80", background:"#4ade8020",
                   border:"1px solid #4ade8040", borderRadius:6,
                   padding:"5px 10px", marginBottom:12, display:"flex", alignItems:"center", gap:6,
-                }}>✨ Claude AI analysis</div>
+                }}>✨ OpenAI GPT analysis</div>
               )}
-              {source.includes("rule") && (
+              {source.includes("rule") && !source.includes("openai") && !source.includes("gpt") && !source.includes("claude") && (
                 <div style={{
                   fontSize:11, color:"#facc15", background:"#facc1520",
                   border:"1px solid #facc1540", borderRadius:6,

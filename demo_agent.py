@@ -8,7 +8,7 @@ def run_demo():
     print("="*50)
     
     # Initialize Environment
-    env = CodeReviewEnv(language="JavaScript")
+    env = CodeReviewEnv()
     
     # 1. Reset to BUGGY State
     obs, info = env.reset()
@@ -26,9 +26,8 @@ def run_demo():
     time.sleep(1)
     
     # 2. Simulate "Intelligent" Agent Actions
-    # Action 1: Add semicolon (Row 1, Column 15)
-    # Action: INSERT_TOKEN(2), Line(1), Col(15), Char(';')
-    action1 = np.array([2, 1, 15, ord(';')])
+    # Action 1: Add semicolon
+    action1 = 1 # ACTION_FIX_SEMICOLONS
     
     print("\n[STEP 1] Agent Action: Inserting missing semicolon...")
     obs, reward, done, truncated, info = env.step(action1)

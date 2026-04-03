@@ -1,25 +1,36 @@
+"""
+server/app.py — Standalone OpenEnv-compatible deployment server.
+Serves the RL environment REST API + code review web UI.
+Used for HuggingFace Spaces deployment.
+"""
+
 import os
-import subprocess
-import threading
-import http.server
-import socketserver
-import time
-from flask import Flask, request, jsonify
+import sys
+import json
+
+# Add parent directory to path for imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
-from openai import OpenAI
 from dotenv import load_dotenv
+from openai import OpenAI
+from rl_env import CodeReviewEnv
 from rule_engine import rule_based_review
 
-# 1. Load Configuration
+# Load environment
 load_dotenv()
-load_dotenv(os.path.join("backend", ".env"))
-API_KEY = os.getenv("OPENAI_API_KEY")
+load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
+load_dotenv(os.path.join(os.path.dirname(__file__), "..", "backend", ".env"))
 
-# 2. Setup Flask API (Port 4000)
-app = Flask(__name__)
+API_KEY = os.getenv("OPENAI_API_KEY")
+PORT = int(os.getenv("PORT", 7860))
+
+app = Flask(__name__, static_folder=os.path.join(os.path.dirname(__file__), ".."))
 CORS(app)
 
-client = OpenAI(api_key=API_KEY) if API_KEY else None
+ai_client = OpenAI(api_key=API_KEY) if API_KEY else None
+env_instance = CodeReviewEnv()
 
 SYSTEM_PROMPT = """You are an expert code reviewer AI. Analyze the code and return ONLY a valid JSON object.
 JSON schema:
@@ -32,6 +43,12 @@ JSON schema:
   "codePatch": "string"
 }"""
 
+# ── Static files ───────────────────────────────────────────────────────────────
+@app.route("/")
+def serve_index():
+    return send_from_directory(app.static_folder, "index.html")
+
+# ── Code Review API ────────────────────────────────────────────────────────────
 @app.route("/api/review", methods=["POST"])
 def review_code():
     data = request.json
@@ -39,13 +56,11 @@ def review_code():
     lang = data.get("language", "JavaScript")
     diff = data.get("difficulty", "medium")
 
-    if not client:
-        print("[API] No key - using rule engine")
+    if not ai_client:
         return jsonify({**rule_based_review(code, lang, diff), "source": "python-rule-based"})
 
     try:
-        print(f"[API] Calling OpenAI for {lang} ({diff})...")
-        response = client.chat.completions.create(
+        response = ai_client.chat.completions.create(
             model="gpt-4o-mini",
             max_tokens=1500,
             messages=[
@@ -54,25 +69,19 @@ def review_code():
             ]
         )
         raw = response.choices[0].message.content
-        import json
-        # Clean potential markdown fences
         clean = raw.replace("```json", "").replace("```", "").strip()
         parsed = json.loads(clean)
         return jsonify({**parsed, "source": "python-openai"})
     except Exception as e:
-        print(f"[API] Error: {e}")
         return jsonify({**rule_based_review(code, lang, diff), "source": "python-rule-based-fallback", "error": str(e)})
 
 # ── OpenEnv Endpoints ──────────────────────────────────────────────────────────
-from rl_env import CodeReviewEnv
-env_instance = CodeReviewEnv()
-
 @app.route("/health", methods=["GET"])
 def health():
     return jsonify({
         "status": "ok",
         "environment": "codereview-ai",
-        "ai_ready": client is not None,
+        "ai_ready": ai_client is not None,
         "model": "gpt-4o-mini"
     })
 
@@ -122,40 +131,7 @@ def get_state():
         "score": env_instance.current_score,
     })
 
-def run_api():
-    app.run(port=4000, debug=False, use_reloader=False)
-
-# 3. Setup File Server (Port 8080)
-PORT_HTTP = 8080
-directory = os.path.dirname(os.path.abspath(__file__))
-os.chdir(directory)
-
-class QuietHandler(http.server.SimpleHTTPRequestHandler):
-    def log_message(self, format, *args): pass
-
-def run_http():
-    with socketserver.TCPServer(("", PORT_HTTP), QuietHandler) as httpd:
-        print(f"File server at http://localhost:{PORT_HTTP}...")
-        httpd.serve_forever()
-
-# --- Execution ---
 if __name__ == "__main__":
-    # Start API in background
-    api_thread = threading.Thread(target=run_api, daemon=True)
-    api_thread.start()
-
-    # Start File server in background
-    http_thread = threading.Thread(target=run_http, daemon=True)
-    http_thread.start()
-
-    time.sleep(1)
-    url = f"http://localhost:{PORT_HTTP}/index.html"
-    print(f"Launching Chrome at {url} ...")
-    subprocess.Popen(["start", "chrome", url], shell=True)
-
-    # Keep alive
-    try:
-        while True:
-            time.sleep(1)
-    except KeyboardInterrupt:
-        print("Shutting down...")
+    print(f"✅ CodeReview AI Server on http://0.0.0.0:{PORT}")
+    print(f"   AI engine: {'OpenAI (GPT-4o-mini)' if ai_client else 'Rule-based fallback'}")
+    app.run(host="0.0.0.0", port=PORT, debug=False)

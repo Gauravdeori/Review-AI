@@ -1,0 +1,36 @@
+name: codereview-ai
+description: "AI-powered code review environment with RL agent for automated bug detection and fixing"
+version: "1.0.0"
+
+server:
+  dockerfile: server/Dockerfile
+  port: 7860
+
+environment:
+  action_type: "discrete"
+  observation_type: "box"
+  
+  action_space:
+    type: Discrete
+    n: 6
+    labels:
+      - NO_OP
+      - FIX_SEMICOLONS
+      - FIX_PARENTHESES
+      - FIX_LOOP_BOUNDARY
+      - FIX_PYTHON_DIVISION
+      - FIX_INDEXING
+
+  observation_space:
+    type: Box
+    shape: [10]
+    low: 0
+    high: 100
+    dtype: float32
+
+metadata:
+  author: "CodeReview AI Team"
+  tags:
+    - code-review
+    - reinforcement-learning
+    - bug-detection

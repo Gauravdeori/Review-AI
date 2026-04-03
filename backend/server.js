@@ -2,17 +2,18 @@
  * server.js — AI Code Review Backend
  * -----------------------------------
  * Express server that exposes a single POST /api/review endpoint.
- * It forwards code to the Anthropic Claude API and returns a
+ * It forwards code to the OpenAI API (GPT-4o-mini) and returns a
  * structured JSON review (bugs, optimizations, verdict, score).
  *
- * Fallback: if ANTHROPIC_API_KEY is missing, the rule-based engine
+ * Fallback: if OPENAI_API_KEY is missing, the rule-based engine
  * (reviewEngine.js) is used instead so the app still works offline.
  */
 
-require("dotenv").config();
+const path = require("path");
+require("dotenv").config({ path: path.join(__dirname, ".env") });
 const express = require("express");
 const cors    = require("cors");
-const Anthropic = require("@anthropic-ai/sdk");
+const OpenAI  = require("openai");
 const { ruleBasedReview } = require("./reviewEngine");
 
 const app  = express();
@@ -22,12 +23,12 @@ const PORT = process.env.PORT || 4000;
 app.use(cors());               // allow requests from the React dev server
 app.use(express.json());
 
-// ── Anthropic client (only created when key is present) ──────────────────────
-const anthropic = process.env.ANTHROPIC_API_KEY
-  ? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+// ── OpenAI client (only created when key is present) ─────────────────────────
+const openai = process.env.OPENAI_API_KEY
+  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
   : null;
 
-// ── System prompt sent to Claude ─────────────────────────────────────────────
+// ── System prompt sent to GPT ────────────────────────────────────────────────
 const SYSTEM_PROMPT = `You are an expert code reviewer AI. Analyze the submitted code and return ONLY a valid JSON object — no markdown fences, no preamble, nothing else.
 
 JSON schema:
@@ -78,21 +79,21 @@ app.post("/api/review", async (req, res) => {
   }
 
   // ── No API key → rule-based fallback ───────────────────────────────────────
-  if (!anthropic) {
+  if (!openai) {
     console.log("[review] No API key — using rule-based engine");
     const result = ruleBasedReview(code, language, difficulty);
     return res.json({ ...result, source: "rule-based" });
   }
 
-  // ── Claude API ─────────────────────────────────────────────────────────────
+  // ── OpenAI API ─────────────────────────────────────────────────────────────
   try {
-    console.log(`[review] ${language} / ${difficulty} — calling Claude`);
+    console.log(`[review] ${language} / ${difficulty} — calling OpenAI`);
 
-    const message = await anthropic.messages.create({
-      model      : "claude-3-5-sonnet-latest",
+    const chatCompletion = await openai.chat.completions.create({
+      model      : "gpt-4o-mini",
       max_tokens : 1500,
-      system     : SYSTEM_PROMPT,
       messages   : [
+        { role: "system", content: SYSTEM_PROMPT },
         {
           role   : "user",
           content: `Review this ${language} code at difficulty level: ${difficulty}\n\nCode:\n\`\`\`${language.toLowerCase()}\n${code}\n\`\`\``,
@@ -100,13 +101,13 @@ app.post("/api/review", async (req, res) => {
       ],
     });
 
-    const raw   = message.content.map((c) => c.text || "").join("");
+    const raw   = chatCompletion.choices[0].message.content || "";
     const clean = raw.replace(/```json|```/g, "").trim();
     const parsed = JSON.parse(clean);
 
-    return res.json({ ...parsed, source: "claude-ai" });
+    return res.json({ ...parsed, source: "openai-gpt" });
   } catch (err) {
-    console.error("[review] Claude API error:", err.message);
+    console.error("[review] OpenAI API error:", err.message);
 
     // Graceful fallback on API failure
     const fallback = ruleBasedReview(code, language, difficulty);
@@ -118,13 +119,13 @@ app.post("/api/review", async (req, res) => {
 app.get("/api/health", (_req, res) => {
   res.json({
     status : "ok",
-    aiReady: !!anthropic,
-    model  : "claude-3-5-sonnet-latest",
+    aiReady: !!openai,
+    model  : "gpt-4o-mini",
   });
 });
 
 // ── Start ─────────────────────────────────────────────────────────────────────
 app.listen(PORT, () => {
   console.log(`✅ Code Review API running on http://localhost:${PORT}`);
-  console.log(`   AI engine: ${anthropic ? "Claude (Anthropic)" : "Rule-based fallback"}`);
+  console.log(`   AI engine: ${openai ? "OpenAI (GPT-4o-mini)" : "Rule-based fallback"}`);
 });
