@@ -125,7 +125,11 @@ app.get("/api/health", (_req, res) => {
 });
 
 // ── Start ─────────────────────────────────────────────────────────────────────
-app.listen(PORT, () => {
-  console.log(`✅ Code Review API running on http://localhost:${PORT}`);
-  console.log(`   AI engine: ${openai ? "OpenAI (GPT-4o-mini)" : "Rule-based fallback"}`);
-});
+if (process.env.NODE_ENV !== 'production') {
+  app.listen(PORT, () => {
+    console.log(`✅ Code Review API running on http://localhost:${PORT}`);
+    console.log(`   AI engine: ${openai ? "OpenAI (GPT-4o-mini)" : "Rule-based fallback"}`);
+  });
+}
+
+module.exports = app;

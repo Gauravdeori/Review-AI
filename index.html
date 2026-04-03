@@ -211,7 +211,8 @@ function App() {
     setLoading(true);
     setReview(null);
     try {
-      const resp = await fetch("http://localhost:4000/api/review", {
+      const apiUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? "http://localhost:4000/api/review" : "/api/review";
+      const resp = await fetch(apiUrl, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ code, language: effectiveLanguage, difficulty })
       });
@@ -229,7 +230,8 @@ function App() {
     let allBugs = [];
     for (const level of ["easy", "medium", "hard"]) {
       try {
-        const resp = await fetch("http://localhost:4000/api/review", {
+        const apiUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? "http://localhost:4000/api/review" : "/api/review";
+        const resp = await fetch(apiUrl, {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ code, language: effectiveLanguage, difficulty: level })
         });
