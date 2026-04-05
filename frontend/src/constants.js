@@ -11,40 +11,41 @@ export const DIFFICULTY_LEVELS = [
 // ── Pre-loaded sample code with intentional bugs ─────────────────────────────
 export const SAMPLE_CODE = {
   JavaScript: `function calculateSum(arr) {
-  let total = 0
-  for (let i = 0; i <= arr.length; i++) {
-    total += arr[i]
+  let total = 0;
+  for (let i = 0; i < arr.length; i++) {
+    total += arr[i];
   }
-  return total
+  return total;
 }
 
 function findDuplicate(arr) {
   for (let i = 0; i < arr.length; i++) {
-    for (let j = 0; j < arr.length; j++) {
+    for (let j = i + 1; j < arr.length; j++) {
       if (arr[i] === arr[j]) return true
     }
   }
   return false
 }
 
-console.log(calculateSum([1, 2, 3, 4, 5])`,
+console.log(calculateSum([1, 2, 3, 4, 5]));`,
 
   Python: `def calculate_sum(arr):
     total = 0
-    for i in range(len(arr) + 1):
+    for i in range(len(arr)):
         total += arr[i]
     return total
 
 def find_max(arr):
-    max_val = 0
+    if not arr: return None
+    max_val = arr[0]
     for x in arr:
         if x > max_val:
             max_val = x
     return max_val
 
 def is_palindrome(s):
-    for i in range(len(s) / 2):
-        if s[i] != s[len(s) - i]:
+    for i in range(len(s) // 2):
+        if s[i] != s[len(s) - 1 - i]:
             return False
     return True`,
 
@@ -52,16 +53,17 @@ def is_palindrome(s):
 using namespace std;
 
 int calculateSum(int arr[], int n) {
-    int total = 0
-    for (int i = 0; i <= n; i++) {
+    int total = 0;
+    for (int i = 0; i < n; i++) {
         total += arr[i];
     }
     return total;
 }
 
 int findMax(int arr[], int n) {
-    int max = 0;
-    for (int i = 0; i < n; i++
+    if (n <= 0) return -1;
+    int max = arr[0];
+    for (int i = 1; i < n; i++) {
         if (arr[i] > max) max = arr[i];
     }
     return max;

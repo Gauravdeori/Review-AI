@@ -134,6 +134,13 @@ class CodeReviewEnv(gym.Env):
             
         return "\n".join(new_lines)
 
+    def get_bug_counts(self, bugs):
+        """Helper to count bugs by severity."""
+        counts = {"critical": 0, "warning": 0, "info": 0}
+        for b in bugs:
+            counts[b.get("severity", "info")] = counts.get(b.get("severity", "info"), 0) + 1
+        return counts
+
     def reset(self, *, seed=None, options=None):
         """Curriculum management: Samples snippets based on total episodes played or manual override."""
         super().reset(seed=seed, options=options)
@@ -163,6 +170,7 @@ class CodeReviewEnv(gym.Env):
         # Initial evaluation
         info = rule_based_review(self.current_code, self.language, self.difficulty)
         self.current_score = info.get("score", 0)
+        self.prev_bug_counts = self.get_bug_counts(info.get("bugs", []))
         
         return self.encode_observation(self.current_code, info), info
 
@@ -174,33 +182,44 @@ class CodeReviewEnv(gym.Env):
         # Evaluate with Rule Engine
         review = rule_based_review(new_code, self.language, self.difficulty)
         new_score = review.get("score", 0)
+        new_bug_counts = self.get_bug_counts(review.get("bugs", []))
         
-        # New Reward Logic: 
-        # Correct bug found (Score 100) -> +1
-        # Partially correct (Score improved) -> +0.5
-        # Wrong (Score dropped or stayed same) -> -0.2
+        # --- Synchronized Reward System ---
+        # 1. Correct findings: Critical bugs removed
+        correct_count = max(0, self.prev_bug_counts["critical"] - new_bug_counts["critical"])
         
-        if new_score == 100:
-            reward = 1.0
-            terminated = True
-        elif new_score > self.current_score:
-            reward = 0.5
-            terminated = False
-        else:
-            reward = -0.2
-            terminated = False
+        # 2. Partial findings: Warning/Info bugs removed
+        prev_others = self.prev_bug_counts["warning"] + self.prev_bug_counts["info"]
+        new_others = new_bug_counts["warning"] + new_bug_counts["info"]
+        partial_count = max(0, prev_others - new_others)
+        
+        # 3. Wrong findings: Bugs added or score stayed same/dropped
+        added_count = sum(max(0, new_bug_counts[k] - self.prev_bug_counts[k]) for k in new_bug_counts)
+        wrong_count = added_count if (added_count > 0 or new_score <= self.current_score) else 0
+        if correct_count == 0 and partial_count == 0 and wrong_count == 0:
+            wrong_count = 1 # Force penalty for no-op if no improvement
             
-        # Execute sandbox for metadata (even if not used for reward)
+        # Calculate Reward based on image formula
+        reward = (correct_count * 1.0) + (partial_count * 0.5) - (wrong_count * 0.2)
+        
+        # Execute sandbox for metadata
         sandbox_res = run_in_sandbox(new_code, self.language)
-            
+        
         self.current_code = new_code
         self.current_score = new_score
+        self.prev_bug_counts = new_bug_counts
+        
+        # Terminate if score is 100 or tests passed
+        terminated = sandbox_res.tests_passed or (new_score == 100)
         
         # Additional info for logging
         info = {
             "score": new_score,
+            "correct": correct_count,
+            "partial": partial_count,
+            "wrong": wrong_count,
+            "reward_total": reward,
             "sandbox_passed": sandbox_res.tests_passed,
-            "sandbox_reward": sandbox_res.reward_bonus,
             "lang": self.language
         }
         

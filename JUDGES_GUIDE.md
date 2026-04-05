@@ -19,8 +19,8 @@ To see the application UI as a human user:
     ```bash
     python host_preview.py
     ```
-3.  **Chrome will open** to `http://localhost:8080/preview_app.html`. 
-4.  You can type JavaScript or Python code on the left and see the **Visual Ring Score** and **Bug Cards** on the right.
+3.  **Chrome will open** to `http://localhost:8080/index.html`. 
+4.  You can type JavaScript or Python code on the left and see the **Premium Dark Dashboard**, **Score Ring**, and **Finding Breakdown** on the right.
 
 ---
 
@@ -31,7 +31,7 @@ To see how an AI agent is trained to "fix" code autonomously using Reinforcement
     ```bash
     python demo_agent.py
     ```
-3.  **What you will see**: The script will reset to a buggy state, simulate an agent "deciding" on character-level edits, and show the **Real-Time Reward Signals** (+10 for syntax, +50 for test pass) as the agent optimizes the code.
+3.  **What you will see**: The script will reset to a buggy state, simulate an agent "deciding" on character-level edits, and show the **Real-Time Reward Signals** (+1.0 for critical fix, +0.5 for partial fix, -0.2 for errors) as the agent optimizes the code.
 
 ---
 

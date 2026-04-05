@@ -78,15 +78,18 @@ def run_in_sandbox(code: str, language: str) -> SandboxResult:
             stderr_log = proc.stderr.strip()
             stdout_log = proc.stdout.strip()
             
+            # Common Docker system errors
+            is_docker_err = any(x in stderr_log.lower() for x in ["daemon", "not found", "no such image", "connection refused"])
+            
             if exit_code == 0:
                 compiled = True
                 tests_passed = True
-            elif exit_code == 1:
+            elif exit_code == 1 and not is_docker_err:
                 # Tests failed, but syntax compiled/interpreted perfectly fine
                 compiled = True
                 tests_passed = False
             else:
-                # exit code > 1 implies deep crash, Docker missing, syntax exception, etc.
+                # exit code > 1 or docker error implies deep crash, Docker missing, syntax exception, etc.
                 compiled = False
                 tests_passed = False
 
@@ -95,17 +98,19 @@ def run_in_sandbox(code: str, language: str) -> SandboxResult:
             
         except FileNotFoundError:
             # Docker is likely not installed on host.
-            stderr_log = "Docker daemon not available."
+            stderr_log = "Docker executable not found on path."
             compiled = False
             tests_passed = False
             
         # 7. Calculate Second-Stage Reward Matrix
         reward = 0.0
-        if timed_out or (not compiled and exit_code > 1):
-            reward = -5.0 # Timeout or crash/exception penalty
+        if timed_out:
+            reward = -5.0
+        elif not compiled:
+            reward = -10.0 # Significant penalty for environment or syntax crash
         elif tests_passed:
             reward = 60.0 # +10 compile + 50 tests strictly passed = 60
-        elif compiled:
+        else:
             reward = 10.0 # Just syntax OK without crashing, but logical tests failed
             
         # 8. Log Execution Trace for debugging
