@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ReviewAI – Pro Agency Dashboard</title>
+    <title>CodeReview AI – Professional Audit Dashboard</title>
     <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -11,15 +11,15 @@
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
         
         :root {
-            --bg-deep: #0D1117;
-            --bg-surface: #161B22;
-            --bg-card: #0D1117;
-            --border: #30363D;
-            --text-main: #C9D1D9;
-            --text-dim: #8B949E;
-            --accent-yellow: #EAB308;
-            --accent-red: #F85149;
-            --accent-green: #238636;
+            --bg-deep: #F8FAFC;
+            --bg-surface: #FFFFFF;
+            --border: #E2E8F0;
+            --text-main: #0F172A;
+            --text-dim: #64748B;
+            --accent-yellow: #F59E0B;
+            --accent-red: #EF4444;
+            --accent-green: #10B981;
+            --accent-blue: #3B82F6;
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -33,39 +33,76 @@
         
         ::-webkit-scrollbar { width: 8px; }
         ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #30363D; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #484F58; }
+        ::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94A3B8; }
 
         .btn {
             cursor: pointer; border: 1px solid var(--border); outline: none;
             transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
             font-family: 'Inter', sans-serif;
             display: flex; align-items: center; gap: 8px;
-            padding: 8px 16px; border-radius: 8px;
-            font-size: 13px; font-weight: 600;
+            padding: 10px 20px; border-radius: 8px;
+            font-size: 14px; font-weight: 600;
             background: var(--bg-surface); color: var(--text-main);
         }
-        .btn:hover { border-color: #8B949E; background: #21262D; }
-        .btn-primary { background: #238636; border: none; color: #FFF; }
-        .btn-primary:hover { background: #2EA043; transform: translateY(-1px); }
+        .btn:hover { border-color: #94A3B8; background: #F1F5F9; }
+        .btn-primary { background: var(--text-main); color: #FFF; border: none; }
+        .btn-primary:hover { background: #1E293B; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(15, 23, 42, 0.1); }
         .btn-rejected { background: var(--accent-red); color: #FFF; border: none; }
 
         .status-banner {
-            background: rgba(234, 179, 8, 0.1);
-            border: 1px solid rgba(234, 179, 8, 0.2);
+            background: #FFFBEB;
+            border: 1px solid #FEF3C7;
             padding: 8px 16px;
             border-radius: 8px;
             font-size: 12px;
-            font-weight: 500;
-            color: var(--accent-yellow);
+            font-weight: 600;
+            color: #92400E;
             display: flex;
             align-items: center;
             gap: 8px;
             margin-bottom: 24px;
         }
 
-        @keyframes slideIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
-        .animate-slide { animation: slideIn 0.3s ease-out forwards; }
+        .editor-container {
+            display: flex;
+            height: 100%;
+            background: #FFF;
+            position: relative;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 14px;
+        }
+        .line-gutter {
+            width: 50px;
+            background: #F1F5F9;
+            color: #94A3B8;
+            padding: 24px 0;
+            text-align: right;
+            user-select: none;
+            border-right: 1px solid var(--border);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        .line-gutter div { height: 22.4px; padding-right: 12px; }
+        
+        .code-textarea {
+            flex: 1;
+            background: transparent;
+            border: none;
+            outline: none;
+            padding: 24px;
+            font-family: inherit;
+            color: inherit;
+            font-size: inherit;
+            line-height: 1.6;
+            resize: none;
+            white-space: pre;
+            overflow: auto;
+        }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-fade { animation: fadeIn 0.4s ease-out forwards; }
     </style>
 </head>
 <body>
@@ -73,38 +110,90 @@
     <script type="text/babel">
 const { useState, useRef, useCallback, useEffect } = React;
 
+const LANGUAGES = [
+  "JavaScript", "TypeScript", "Python", "Java", "C++", "C", "C#", "Go", "Rust", "Ruby", "PHP", "HTML", "CSS"
+];
+
+const LEVELS = [
+  { id: "easy", name: "Easy", color: "#10B981" },
+  { id: "medium", name: "Medium", color: "#F59E0B" },
+  { id: "hard", name: "Hard", color: "#EF4444" }
+];
+
 const SAMPLE_CODE = {
   JavaScript: `function calculateSum(arr) {\n  let total = 0\n  for (let i = 0; i <= arr.length; i++) {\n    total += arr[i]\n  }\n  return total\n}`,
   Python: `def is_palindrome(s):\n    for i in range(len(s) / 2):\n        if s[i] != s[len(s) - i]:\n            return False\n    return True`,
-  "C++": `int findMax(int arr[], int n) {\n    int maxVal = 0;\n    for (int i = 0; i < n; i++) {\n        if (arr[i] > maxVal) maxVal = arr[i];\n    }\n    return maxVal;\n}`
+  "C++": `int findMax(int arr[], int n) {\n    int maxVal = 0;\n    for (int i = 0; i < n; i++) {\n        if (arr[i] > maxVal) maxVal = arr[i];\n    }\n    return maxVal;\n}`,
+  HTML: `<!DOCTYPE html>\n<html>\n<body>\n  <h1>My First Heading</h1>\n  <p>My first paragraph.</p>\n</body>\n</html>`,
+  C: `#include <stdio.h>\nint main() {\n  printf("Hello, World!");\n  return 0;\n}`
 };
+
+// ─── Logic ──────────────────────────────────────────────────────────────────
+
+function extractFeatures(code, lang, diff) {
+    // Simple JS port of rl_env.py encode_observation logic
+    const lines = code.split('\n');
+    let semicolons = 0, parens = 0, boundary = 0, div = 0, idx = 0, max0 = 0, on2 = 0;
+    
+    lines.forEach(t => {
+        const text = t.trim();
+        if (text.length > 2 && !/[{}:;,]$/.test(text) && !text.startsWith("//") && !text.startsWith("#")) semicolons++;
+        if (text.includes("(") && text.count && text.count("(") !== text.count(")")) parens++;
+        if (/i\s*<=\s*(arr\.length|n\b)/.test(text)) boundary++;
+        if (lang === "Python" && /range\s*\(.*\/\s*\d/.test(text)) div++;
+        if (/\w\s*\[\s*len\s*\(\w+\)\s*-\s*\w+\s*\]/.test(text) && !text.includes("- 1")) idx++;
+        if (/\bmax\w*\s*=\s*0\b/.test(text)) max0++;
+        if (/for\s*\(.*i\s*<.*j\s*</.test(text)) on2++;
+    });
+
+    const langMap = { "JavaScript": 1, "Python": 2, "C++": 3 };
+    const diffMap = { "easy": 0, "medium": 1, "hard": 2 };
+
+    return [semicolons, parens, boundary, div, idx, max0, on2, 0, langMap[lang] || 0, diffMap[diff]];
+}
 
 // ─── Components ──────────────────────────────────────────────────────────────
 
-function ScoreSection({ review }) {
+function NeuralInsight({ features }) {
+    const labels = ["Syntax Noise", "Paren Imbalance", "Loop Boundary", "Float Division", "Index Shift", "Zero Max Init", "Nested Complexity", "Health Score", "Lang Code", "Diff Tier"];
+    return (
+        <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: "12px", padding: "16px", marginBottom: "24px" }}>
+            <div style={{ fontSize: "11px", fontWeight: "800", color: "#64748B", marginBottom: "16px", letterSpacing: "1px" }}>NEURAL INSIGHT (RL OBSERVATION)</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+                {features.map((val, i) => (
+                    <div key={i} style={{ background: "#FFF", border: "1px solid #F1F5F9", padding: "6px 10px", borderRadius: "8px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <div style={{ fontSize: "10px", color: "#94A3B8", fontWeight: "600" }}>{labels[i]}</div>
+                        <div style={{ fontSize: "12px", fontWeight: "800", color: val > 0 ? "#3B82F6" : "#CBD5E1" }}>{val}</div>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+}
+
+function ScoreSection({ review, isUltra }) {
   if (!review) return null;
   const score = review.score;
   const isRejected = review.verdict.includes("REJECTED");
-  const color = isRejected ? "#F85149" : "#238636";
-  const ringColor = score >= 70 ? "#238636" : score >= 40 ? "#EAB308" : "#F85149";
+  const ringColor = score >= 70 ? "#10B981" : score >= 40 ? "#F59E0B" : "#EF4444";
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: "32px", position: "relative" }}>
-        <div className="status-banner">
-            <span>⚡</span> Rule-based engine (API unavailable)
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: "32px", width: "100%" }}>
+        <div className="status-banner" style={{ width: "100%", justifyContent: "center" }}>
+            <span>{isUltra ? '🚀' : '⚡'}</span> {isUltra ? 'Ultra Audit Mode: Combined Intelligence' : 'Logic status: Operational (v2.4.0)'}
         </div>
         
         <div style={{ display: "flex", alignItems: "center", gap: "24px" }}>
-            <div style={{ position: "relative", width: "100px", height: "100px" }}>
-                <svg width="100" height="100" style={{ transform: "rotate(-90deg)" }}>
-                    <circle cx="50" cy="50" r="44" fill="none" stroke="#21262D" strokeWidth="6" />
-                    <circle cx="50" cy="50" r="44" fill="none" stroke={ringColor} strokeWidth="6" strokeDasharray="276.46" strokeDashoffset={276.46 * (1 - score/100)} strokeLinecap="round" style={{ transition: "stroke-dashoffset 1s ease" }} />
+            <div style={{ position: "relative", width: "110px", height: "110px" }}>
+                <svg width="110" height="110" style={{ transform: "rotate(-90deg)" }}>
+                    <circle cx="55" cy="55" r="48" fill="none" stroke="#F1F5F9" strokeWidth="8" />
+                    <circle cx="55" cy="55" r="48" fill="none" stroke={ringColor} strokeWidth="8" strokeDasharray="301.59" strokeDashoffset={301.59 * (1 - score/100)} strokeLinecap="round" style={{ transition: "stroke-dashoffset 1s ease" }} />
                 </svg>
-                <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "32px", fontWeight: "800", color: "#FFF" }}>{score}</div>
+                <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "36px", fontWeight: "800", color: "#0F172A" }}>{score}</div>
             </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                <div style={{ fontSize: "12px", fontWeight: "600", color: "var(--text-dim)", letterSpacing: "1px" }}>CODE SCORE</div>
-                <div style={{ background: isRejected ? "#F85149" : "#238636", color: "#FFF", padding: "4px 16px", borderRadius: "20px", fontSize: "12px", fontWeight: "800", textAlign: "center" }}>{review.verdict}</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                <div style={{ fontSize: "11px", fontWeight: "800", color: "#64748B", letterSpacing: "1.5px" }}>HEURISTIC SCORE</div>
+                <div style={{ background: isRejected ? "#FEE2E2" : "#DCFCE7", color: isRejected ? "#B91C1C" : "#15803D", padding: "6px 16px", borderRadius: "8px", fontSize: "13px", fontWeight: "700", textAlign: "center" }}>{review.verdict}</div>
             </div>
         </div>
     </div>
@@ -114,25 +203,31 @@ function ScoreSection({ review }) {
 function RewardCard({ breakdown }) {
   if (!breakdown) return null;
   return (
-    <div style={{ background: "rgba(13, 17, 23, 0.5)", border: "1px solid #30363D", borderRadius: "12px", padding: "16px", marginBottom: "24px" }}>
-        <div style={{ fontSize: "11px", fontWeight: "800", color: "#8B949E", marginBottom: "16px", letterSpacing: "0.5px" }}>REINFORCEMENT REWARD</div>
-        <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+    <div style={{ background: "#F1F5F9", border: "1px solid #E2E8F0", borderRadius: "12px", padding: "20px", marginBottom: "24px" }}>
+        <div style={{ fontSize: "11px", fontWeight: "800", color: "#64748B", marginBottom: "16px", letterSpacing: "1px" }}>AGENT REWARD SIGNAL</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div style={{ fontSize: "13px", color: "#C9D1D9" }}>✅ Correct finding (+1)</div>
-                <div style={{ color: "#238636", fontWeight: "700" }}>{breakdown.correct}</div>
+                <div style={{ fontSize: "14px", color: "#334155", display: "flex", alignItems: "center", gap: "8px" }}>
+                    <span style={{ color: "#10B981" }}>●</span> Correct finding (+1.0)
+                </div>
+                <div style={{ fontWeight: "700" }}>{breakdown.correct}</div>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div style={{ fontSize: "13px", color: "#C9D1D9" }}>● Partial finding (+0.5)</div>
-                <div style={{ color: "#EAB308", fontWeight: "700" }}>{breakdown.partial}</div>
+                <div style={{ fontSize: "14px", color: "#334155", display: "flex", alignItems: "center", gap: "8px" }}>
+                    <span style={{ color: "#F59E0B" }}>●</span> Partial finding (+0.5)
+                </div>
+                <div style={{ fontWeight: "700" }}>{breakdown.partial}</div>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div style={{ fontSize: "13px", color: "#C9D1D9" }}>❌ Wrong finding (-0.2)</div>
-                <div style={{ color: "#F85149", fontWeight: "700" }}>{breakdown.wrong}</div>
+                <div style={{ fontSize: "14px", color: "#334155", display: "flex", alignItems: "center", gap: "8px" }}>
+                    <span style={{ color: "#EF4444" }}>●</span> Wrong finding (-0.2)
+                </div>
+                <div style={{ fontWeight: "700" }}>{breakdown.wrong}</div>
             </div>
-            <div style={{ height: "1px", background: "#30363D", margin: "4px 0" }}></div>
+            <div style={{ height: "1px", background: "#CBD5E1", margin: "4px 0" }}></div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div style={{ fontSize: "14px", fontWeight: "700" }}>Total Step Reward</div>
-                <div style={{ color: breakdown.total >= 0 ? "#238636" : "#F85149", fontWeight: "800", fontSize: "15px" }}>
+                <div style={{ fontSize: "15px", fontWeight: "700" }}>Total Signal Reward</div>
+                <div style={{ color: breakdown.total >= 0 ? "#15803D" : "#B91C1C", fontWeight: "800", fontSize: "16px" }}>
                     {breakdown.total >= 0 ? "+" : ""}{breakdown.total.toFixed(2)} pts
                 </div>
             </div>
@@ -142,15 +237,15 @@ function RewardCard({ breakdown }) {
 }
 
 function BugCard({ bug }) {
-  const isCritical = bug.severity === "critical";
+  const color = bug.severity === "critical" ? "#EF4444" : "#F59E0B";
   return (
-    <div style={{ padding: "12px", borderRadius: "8px", background: "#0D1117", border: `1px solid ${isCritical ? '#F85149' : '#30363D'}`, marginBottom: "12px", borderLeft: `4px solid ${isCritical ? '#F85149' : '#EAB308'}` }}>
-        <div style={{ display: "flex", gap: "8px", alignItems: "center", marginBottom: "6px" }}>
-            <span style={{ fontSize: "10px", fontWeight: "800", background: isCritical ? "#F85149" : "#EAB308", color: "#FFF", padding: "1px 6px", borderRadius: "4px", textTransform: "uppercase" }}>{bug.severity}</span>
-            <span style={{ fontSize: "11px", color: "#8B949E" }}>Line {bug.line} • {bug.type}</span>
+    <div style={{ padding: "16px", borderRadius: "10px", background: "#FFF", border: `1px solid #E2E8F0`, marginBottom: "12px", borderLeft: `6px solid ${color}`, boxShadow: "0 2px 4px rgba(0,0,0,0.02)" }}>
+        <div style={{ display: "flex", gap: "8px", alignItems: "center", marginBottom: "8px" }}>
+            <span style={{ fontSize: "10px", fontWeight: "800", background: color, color: "#FFF", padding: "2px 8px", borderRadius: "6px", textTransform: "uppercase" }}>{bug.severity}</span>
+            <span style={{ fontSize: "12px", color: "#64748B", fontWeight: "600" }}>Line {bug.line} • {bug.type}</span>
         </div>
-        <div style={{ fontSize: "13px", fontWeight: "500", color: "#C9D1D9", marginBottom: "4px" }}>{bug.description}</div>
-        <div style={{ fontSize: "11px", color: "#8B949E", background: "#161B22", padding: "6px", borderRadius: "4px", marginTop: "8px" }}>{bug.fix}</div>
+        <div style={{ fontSize: "14px", fontWeight: "600", color: "#0F172A", marginBottom: "6px" }}>{bug.description}</div>
+        <div style={{ fontSize: "12px", color: "#475569", background: "#F8FAFC", padding: "10px", borderRadius: "6px", border: "1px solid #E2E8F0" }}>{bug.fix}</div>
     </div>
   );
 }
@@ -160,42 +255,49 @@ function BugCard({ bug }) {
 function App() {
   const [code, setCode] = useState(SAMPLE_CODE["JavaScript"]);
   const [language, setLanguage] = useState("JavaScript");
+  const [difficulty, setDifficulty] = useState("medium");
   const [loading, setLoading] = useState(false);
+  const [isUltra, setIsUltra] = useState(false);
   const [review, setReview] = useState(null);
   const [prevReview, setPrevReview] = useState(null);
   const [rewardBreakdown, setRewardBreakdown] = useState(null);
   const [activeTab, setActiveTab] = useState("bugs");
 
-  const runReview = useCallback(async () => {
+  const textareaRef = useRef(null);
+  const gutterRef = useRef(null);
+
+  const handleScroll = (e) => {
+    if (gutterRef.current) gutterRef.current.scrollTop = e.target.scrollTop;
+  };
+
+  const lineCount = code.split("\n").length;
+  const lines = Array.from({ length: Math.max(lineCount, 1) }, (_, i) => i + 1);
+  const features = extractFeatures(code, language, difficulty);
+
+  const runReview = useCallback(async (tier = difficulty) => {
     setLoading(true);
+    setIsUltra(false);
     try {
       const apiUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? "http://localhost:4000/api/review" : "/api/review";
       const resp = await fetch(apiUrl, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code, language, difficulty: "medium" })
+        body: JSON.stringify({ code, language, difficulty: tier })
       });
       const data = await resp.json();
       
-      // Calculate reward breakdown
       const critCount = data.bugs.filter(b => b.severity === "critical").length;
       const warnCount = data.bugs.filter(b => b.severity === "warning" || b.severity === "info").length;
       
       let correct = 0, partial = 0, wrong = 0;
-      
       if (prevReview) {
         const prevCrit = prevReview.bugs.filter(b => b.severity === "critical").length;
         const prevWarn = prevReview.bugs.filter(b => b.severity === "warning" || b.severity === "info").length;
-        
         correct = Math.max(0, prevCrit - critCount);
         partial = Math.max(0, prevWarn - warnCount);
-        
         const added = data.bugs.filter(b => !prevReview.bugs.some(pb => pb.line === b.line && pb.description === b.description)).length;
         if (added > 0 || data.score <= prevReview.score) {
             wrong = added || (data.score === prevReview.score ? 1 : 0);
         }
-      } else {
-        // Initial state: any bug found is current state, no "step" reward yet
-        wrong = 0;
       }
 
       setRewardBreakdown({
@@ -208,77 +310,127 @@ function App() {
     } catch (err) {
       console.error(err);
     } finally { setLoading(false); }
-  }, [code, language, prevReview]);
+  }, [code, language, difficulty, prevReview]);
+
+  const runUltra = async () => {
+    setLoading(true);
+    setIsUltra(true);
+    const results = [];
+    for (const d of ["easy", "medium", "hard"]) {
+        const apiUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? "http://localhost:4000/api/review" : "/api/review";
+        const resp = await fetch(apiUrl, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ code, language, difficulty: d })
+        });
+        results.push(await resp.json());
+    }
+    const combinedBugs = [];
+    results.forEach(r => {
+        r.bugs.forEach(b => {
+             if (!combinedBugs.some(cb => cb.line === b.line && cb.description === b.description)) {
+                 combinedBugs.push(b);
+             }
+        });
+    });
+    const avgScore = Math.round(results.reduce((a, b) => a + b.score, 0) / 3);
+    setReview({
+        score: avgScore,
+        verdict: avgScore >= 70 ? "ULTRA APPROVED" : "ULTRA REJECTED",
+        bugs: combinedBugs,
+        summary: "Combined multi-tier analysis complete.",
+        codePatch: results[2].codePatch
+    });
+    setLoading(false);
+  };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
-      <header style={{ height: "64px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", padding: "0 24px", justifyContent: "space-between" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-            <div style={{ width: "32px", height: "32px", background: "#FFF", color: "#000", borderRadius: "8px", fontWeight: "900", display: "flex", alignItems: "center", justifyContent: "center" }}>R</div>
-            <div style={{ fontWeight: "700", letterSpacing: "-0.5px" }}>ReviewAI Agency</div>
+      <header style={{ height: "72px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", padding: "0 32px", justifyContent: "space-between", background: "#FFF" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <div style={{ width: "40px", height: "40px", background: "#0F172A", color: "#FFF", borderRadius: "10px", fontWeight: "900", fontSize: "20px", display: "flex", alignItems: "center", justifyContent: "center" }}>C</div>
+            <div style={{ display: "flex", flexDirection: "column" }}>
+                <div style={{ fontSize: "18px", fontWeight: "800", letterSpacing: "-0.5px" }}>CodeReview AI</div>
+                <div style={{ fontSize: "11px", color: "#64748B", fontWeight: "600", textTransform: "uppercase", letterSpacing: "1px" }}>Automated Audit Platform</div>
+            </div>
         </div>
-        <div style={{ display: "flex", gap: "12px" }}>
-            <select style={{ background: "#21262D", color: "#FFF", border: "1px solid #30363D", borderRadius: "6px", padding: "4px 8px", fontSize: "12px" }} value={language} onChange={e => setLanguage(e.target.value)}>
-                {Object.keys(SAMPLE_CODE).map(l => <option key={l} value={l}>{l}</option>)}
+
+        <div style={{ display: "flex", gap: "12px", background: "#F1F5F9", padding: "4px", borderRadius: "12px", border: "1px solid #E2E8F0" }}>
+            {LEVELS.map(l => (
+                <button key={l.id} onClick={() => setDifficulty(l.id)} style={{ padding: "6px 14px", border: "none", borderRadius: "8px", fontSize: "12px", fontWeight: "700", cursor: "pointer", background: difficulty === l.id ? "#FFF" : "transparent", color: difficulty === l.id ? l.color : "#64748B", boxShadow: difficulty === l.id ? "0 2px 4px rgba(0,0,0,0.05)" : "none", transition: "all 0.2s" }}>
+                    {l.name}
+                </button>
+            ))}
+        </div>
+
+        <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+            <select style={{ border: "1px solid var(--border)", borderRadius: "10px", padding: "8px 16px", fontSize: "14px", fontWeight: "600", outline: "none", cursor: "pointer", background: "#F8FAFC" }} value={language} onChange={e => {
+                setLanguage(e.target.value);
+                if (SAMPLE_CODE[e.target.value]) setCode(SAMPLE_CODE[e.target.value]);
+            }}>
+                {LANGUAGES.map(l => <option key={l} value={l}>{l}</option>)}
             </select>
-            <button className={`btn ${review?.verdict === "REJECTED" ? "btn-rejected" : "btn-primary"}`} onClick={runReview} disabled={loading}>
-                {loading ? "Analyzing..." : "Launch Review"}
+            <button className="btn" style={{ background: "#F1F5F9", border: "none" }} onClick={runUltra} disabled={loading}>
+                Run Ultra Audit
+            </button>
+            <button className="btn btn-primary" onClick={() => runReview()} disabled={loading}>
+                {loading ? "Running..." : "Audit Now"}
             </button>
         </div>
       </header>
 
       <main style={{ flex: 1, display: "flex", overflow: "hidden" }}>
-        <div style={{ flex: 1, overflow: "hidden", background: "#0D1117" }}>
+        <div className="editor-container">
+            <div ref={gutterRef} className="line-gutter">
+                {lines.map(n => <div key={n}>{n}</div>)}
+            </div>
             <textarea 
+                ref={textareaRef}
                 value={code} 
                 onChange={e => setCode(e.target.value)} 
+                onScroll={handleScroll}
                 spellCheck={false}
-                style={{ width: "100%", height: "100%", background: "transparent", border: "none", outline: "none", padding: "24px", fontFamily: "'JetBrains Mono', monospace", color: "#C9D1D9", fontSize: "14px", lineHeight: "1.6", resize: "none" }}
+                className="code-textarea"
             />
         </div>
 
-        <div style={{ width: "400px", borderLeft: "1px solid var(--border)", display: "flex", flexDirection: "column", background: "#161B22", overflowY: "auto" }}>
-            <div style={{ padding: "24px" }}>
+        <div style={{ width: "450px", borderLeft: "1px solid var(--border)", display: "flex", flexDirection: "column", background: "#FFF", overflowY: "auto" }}>
+            <div style={{ padding: "32px" }}>
+                <NeuralInsight features={features} />
+
                 {review ? (
-                    <div className="animate-slide">
-                        <ScoreSection review={review} />
-                        <RewardCard breakdown={rewardBreakdown} />
+                    <div className="animate-fade">
+                        <ScoreSection review={review} isUltra={isUltra} />
+                        {!isUltra && <RewardCard breakdown={rewardBreakdown} />}
                         
-                        <div style={{ background: "#0D1117", border: "1px solid #30363D", borderRadius: "8px", padding: "12px", marginBottom: "16px", textAlign: "center", fontSize: "12px", color: "#8B949E" }}>
-                            Found {review.bugs.length} issue(s): {review.bugs.filter(b => b.severity === 'critical').length} critical, {review.bugs.filter(b => b.severity === 'warning').length} warnings.
-                        </div>
-
-                        <div style={{ display: "flex", gap: "8px", marginBottom: "16px" }}>
-                            <div style={{ flex: 1, background: "#0D1117", border: "1px solid #30363D", borderRadius: "8px", padding: "10px", textAlign: "center" }}>
-                                <div style={{ fontSize: "16px", fontWeight: "700", color: "#F85149" }}>{review.bugs.length}</div>
-                                <div style={{ fontSize: "9px", color: "#8B949E", textTransform: "uppercase" }}>Bugs</div>
-                            </div>
-                            <div style={{ flex: 1, background: "#0D1117", border: "1px solid #30363D", borderRadius: "8px", padding: "10px", textAlign: "center" }}>
-                                <div style={{ fontSize: "16px", fontWeight: "700", color: "#C9D1D9" }}>0</div>
-                                <div style={{ fontSize: "9px", color: "#8B949E", textTransform: "uppercase" }}>Opts</div>
-                            </div>
-                            <div style={{ flex: 1, background: "#0D1117", border: "1px solid #30363D", borderRadius: "8px", padding: "10px", textAlign: "center" }}>
-                                <div style={{ fontSize: "16px", fontWeight: "700", color: "#F85149" }}>{review.bugs.filter(b => b.severity === 'critical').length}</div>
-                                <div style={{ fontSize: "9px", color: "#8B949E", textTransform: "uppercase" }}>Critical</div>
+                        <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: "12px", padding: "16px", marginBottom: "24px", textAlign: "center" }}>
+                            <div style={{ display: "flex", gap: "4px", justifyContent: "center" }}>
+                                {["BUGS", "OPTS", "CRITICAL"].map(t => (
+                                    <div key={t} style={{ flex: 1, padding: "8px" }}>
+                                        <div style={{ fontSize: "18px", fontWeight: "800", color: t === 'BUGS' || t === 'CRITICAL' ? "#EF4444" : "#0F172A" }}>
+                                            {t === 'BUGS' ? review.bugs.length : (t === 'CRITICAL' ? review.bugs.filter(b => b.severity === 'critical').length : 0)}
+                                        </div>
+                                        <div style={{ fontSize: "9px", color: "#64748B", fontWeight: "700" }}>{t}</div>
+                                    </div>
+                                ))}
                             </div>
                         </div>
 
-                        <div style={{ display: "flex", gap: "2px", background: "#21262D", padding: "3px", borderRadius: "8px", marginBottom: "16px" }}>
+                        <div style={{ display: "flex", gap: "4px", background: "#F1F5F9", padding: "4px", borderRadius: "10px", marginBottom: "24px" }}>
                             {["bugs", "optimizations", "patch"].map(t => (
-                                <button key={t} onClick={() => setActiveTab(t)} style={{ flex: 1, padding: "6px", border: "none", borderRadius: "6px", fontSize: "10px", fontWeight: "700", color: activeTab === t ? "#FFF" : "#8B949E", background: activeTab === t ? "#30363D" : "transparent", cursor: "pointer", textTransform: "uppercase" }}>{t}</button>
+                                <button key={t} onClick={() => setActiveTab(t)} style={{ flex: 1, padding: "8px", border: "none", borderRadius: "7px", fontSize: "11px", fontWeight: "800", color: activeTab === t ? "#0F172A" : "#64748B", background: activeTab === t ? "#FFF" : "transparent", cursor: "pointer", textTransform: "uppercase", boxShadow: activeTab === t ? "0 2px 4px rgba(0,0,0,0.05)" : "none" }}>{t}</button>
                             ))}
                         </div>
 
                         <div>
-                            {activeTab === "bugs" && (review.bugs.map((b, i) => <BugCard key={i} bug={b} />))}
-                            {activeTab === "patch" && <pre style={{ background: "#0D1117", color: "#3FB950", padding: "12px", borderRadius: "8px", fontSize: "12px", overflowX: "auto" }}>{review.codePatch}</pre>}
+                            {activeTab === "bugs" && (review.bugs.length > 0 ? review.bugs.map((b, i) => <BugCard key={i} bug={b} />) : <div style={{ textAlign: "center", color: "#64748B", marginTop: "40px" }}>✓ No bugs detected</div>)}
+                            {activeTab === "patch" && <pre style={{ background: "#0F172A", color: "#10B981", padding: "20px", borderRadius: "12px", fontSize: "13px", overflowX: "auto", fontFamily: "'JetBrains Mono', monospace" }}>{review.codePatch}</pre>}
                         </div>
                     </div>
                 ) : (
-                    <div style={{ height: "60vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "#8B949E" }}>
-                        <div style={{ fontSize: "40px", marginBottom: "16px" }}>📡</div>
-                        <div style={{ fontSize: "14px", fontWeight: "600" }}>Awaiting Agency Context</div>
-                        <div style={{ fontSize: "11px", marginTop: "4px" }}>Select a language and launch audit.</div>
+                    <div style={{ height: "40vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center" }}>
+                        <div style={{ width: "60px", height: "60px", background: "#F1F5F9", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "30px", marginBottom: "20px" }}>🧪</div>
+                        <div style={{ fontSize: "16px", fontWeight: "800", marginBottom: "6px" }}>Ready for Audit</div>
+                        <div style={{ fontSize: "12px", color: "#64748B", lineHeight: "1.5" }}>Input code and choose a level or <br/>run an <b>Ultra Audit</b> for a total report.</div>
                     </div>
                 )}
             </div>

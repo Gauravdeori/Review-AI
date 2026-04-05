@@ -71,8 +71,8 @@ app.post("/api/review", async (req, res) => {
   if (!code || typeof code !== "string" || !code.trim()) {
     return res.status(400).json({ error: "code is required" });
   }
-  if (!["JavaScript", "Python", "C++"].includes(language)) {
-    return res.status(400).json({ error: "language must be JavaScript, Python, or C++" });
+  if (!["JavaScript", "TypeScript", "Python", "Java", "C++", "C", "C#", "Go", "Rust", "Ruby", "PHP", "HTML", "CSS"].includes(language)) {
+    return res.status(400).json({ error: "language must be one of the 13 supported languages" });
   }
   if (!["easy", "medium", "hard"].includes(difficulty)) {
     return res.status(400).json({ error: "difficulty must be easy, medium, or hard" });
