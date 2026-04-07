@@ -21,7 +21,7 @@ from rule_engine import rule_based_review
 # Load environment
 load_dotenv()
 load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
-load_dotenv(os.path.join(os.path.dirname(__file__), "..", "backend", ".env"))
+load_dotenv(os.path.join(os.path.dirname(__file__), "..", "_legacy", "backend", ".env"))
 
 API_KEY = os.getenv("OPENAI_API_KEY")
 PORT = int(os.getenv("PORT", 7860))

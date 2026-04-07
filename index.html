@@ -279,7 +279,7 @@ function App() {
     setLoading(true);
     setIsUltra(false);
     try {
-      const apiUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? "http://localhost:4000/api/review" : "/api/review";
+      const apiUrl = "/api/review";
       const resp = await fetch(apiUrl, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ code, language, difficulty: tier })
@@ -318,7 +318,7 @@ function App() {
     setIsUltra(true);
     const results = [];
     for (const d of ["easy", "medium", "hard"]) {
-        const apiUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? "http://localhost:4000/api/review" : "/api/review";
+        const apiUrl = "/api/review";
         const resp = await fetch(apiUrl, {
             method: "POST", headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ code, language, difficulty: d })
